@@ -18,6 +18,9 @@
         #edit-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
         label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
         #loading { display:none; color: #666; text-align: center; margin-top: 10px; font-weight: bold;}
+        
+        /* Success Message Style */
+        .success-msg { color: #1DB446; font-size: 18px; font-weight: bold; margin-top: 20px; text-align: center; }
     </style>
 </head>
 <body>
@@ -58,10 +61,7 @@
 
     <script>
         const CONFIG = {
-            // 1. PASTE YOUR LIFF ID HERE
             liffId: "2009011182-W7GaHRTL", 
-            
-            // 2. PASTE YOUR GOOGLE SCRIPT URL HERE (Must end in /exec)
             scriptUrl: "https://script.google.com/macros/s/AKfycby17s2vUqmaLRg8NUmBi2C4XIIVciDRXFHviGYYiTiVl6v9ieLd0i7K-EC63s4ph3ZAIQ/exec" 
         };
 
@@ -80,18 +80,21 @@
 
         // 1. SEARCH FUNCTION
         async function searchData() {
-            const ref = document.getElementById('searchRef').value.trim();
+            const refCode = document.getElementById('searchRef').value.trim();
             const btn = document.getElementById('searchBtn');
             const status = document.getElementById('status');
             
-            if (!ref) { status.innerText = "Please enter a Ref Code"; return; }
+            if (!refCode) { status.innerText = "Please enter a Ref Code"; return; }
 
             btn.disabled = true;
             status.innerText = "";
             document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').style.color = "#666"; // Reset color
+            document.getElementById('loading').innerText = "Processing... Please wait.";
 
             try {
-                const response = await fetch(`${CONFIG.scriptUrl}?ref=${ref}`, {
+                // FIXED: Changed '?refCode=' to '?ref=' to match Google Script
+                const response = await fetch(`${CONFIG.scriptUrl}?ref=${refCode}`, {
                     method: "GET",
                     redirect: "follow"
                 });
@@ -124,8 +127,8 @@
 
         // 2. UPDATE / DELETE AND SEND TO CHAT
         async function sendAction(actionType) {
-            const ref = document.getElementById('searchRef').value.trim();
-            if (!ref) return;
+            const refCode = document.getElementById('searchRef').value.trim();
+            if (!refCode) return;
 
             // Gather Data
             const bill = document.getElementById('billNo').value;
@@ -138,7 +141,7 @@
             const payload = {
                 authKey: "PNGL",
                 action: actionType,
-                refCode: ref,
+                refCode: refCode,
                 bill: bill,
                 item: item,
                 desc: desc,
@@ -149,6 +152,7 @@
 
             if(confirm(`Are you sure you want to ${actionType}?`)) {
                 document.getElementById('loading').style.display = 'block';
+                document.getElementById('loading').innerText = "Updating Database...";
                 
                 try {
                     // A. Send to Google Sheet (Database Update)
@@ -163,28 +167,41 @@
                         let msg = "";
                         
                         if (actionType === 'delete') {
-                            msg = `❌ Delete ${ref}*\n\n` +
-                                    `• Bill No: ${bill}\n` +
-                                    `• Item No: ${item}\n` +
-                                    `• Desc: ${desc}\n` +
-                                    `• Supplier: ${supplier}\n` +
-                                    `• Installment: ${inst}\n` +
-                                    `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
-                                    `• Ref: ${ref}`;
+                            msg = `❌ *Delete ${refCode}*\n\n` +
+                                  `• Bill No: ${bill}\n` +
+                                  `• Item No: ${item}\n` +
+                                  `• Desc: ${desc}\n` +
+                                  `• Supplier: ${supplier}\n` +
+                                  `• Installment: ${inst}\n` +
+                                  `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
+                                  `• Ref: ${refCode}`;
                         } else {
-                            // Format the message nicely
-                            msg = `📋 Edit ${ref}*\n\n` +
-                                    `• Bill No: ${bill}\n` +
-                                    `• Item No: ${item}\n` +
-                                    `• Desc: ${desc}\n` +
-                                    `• Supplier: ${supplier}\n` +
-                                    `• Installment: ${inst}\n` +
-                                    `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
-                                    `• Ref: ${ref}`;
+                            msg = `🔧 *Edit ${refCode}*\n\n` +
+                                  `• Bill No: ${bill}\n` +
+                                  `• Item No: ${item}\n` +
+                                  `• Desc: ${desc}\n` +
+                                  `• Supplier: ${supplier}\n` +
+                                  `• Installment: ${inst}\n` +
+                                  `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
+                                  `• Ref: ${refCode}`;
                         }
 
-                        await liff.sendMessages([{ type: 'text', text: msg }]);
-                        liff.closeWindow(); // Close the window after sending
+                        await liff.sendMessages([
+                            { type: 'text', text: msg },
+                            { type: 'text', text: refCode }
+                        ]);
+
+                        // --- C. SUCCESS & DELAY ---
+                        document.getElementById('edit-section').style.display = 'none'; // Hide Form
+                        document.getElementById('loading').innerText = "✅ Success! Closing...";
+                        document.getElementById('loading').className = "success-msg"; // Make it green/bold
+                        document.getElementById('loading').style.color = "#1DB446";
+
+                        // Wait 2 seconds (2000ms) then close
+                        setTimeout(() => {
+                            liff.closeWindow();
+                        }, 2000);
+
                     } else {
                         // Fallback for browser testing
                         alert("Success! (Open in LINE to see message)");
