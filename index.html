@@ -15,28 +15,12 @@
         .btn-save { background-color: #1DB446; }
         .btn-del { background-color: #dc3545; margin-top: 15px;}
         .btn-cancel { background-color: #6c757d; margin-top: 5px;}
-        
-        /* Sections */
-        #edit-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
-        #review-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
-        
+        #edit-section, #review-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
         label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
         #loading { display:none; color: #666; text-align: center; margin-top: 10px; font-weight: bold;}
-
-        /* Review Box Style */
         .review-box { background-color: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .review-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #eee; padding-bottom: 4px;}
-        .review-row strong { color: #333; }
-        .review-row span { color: #666; text-align: right;}
-
-        /* Bottom Status Message */
-        #bottom-message { 
-            text-align: center; 
-            margin-top: 20px; 
-            font-weight: bold; 
-            font-size: 16px;
-            min-height: 24px;
-        }
+        #bottom-message { text-align: center; margin-top: 20px; font-weight: bold; font-size: 16px; min-height: 24px; }
         .success-text { color: #1DB446; }
         .error-text { color: #dc3545; }
     </style>
@@ -58,6 +42,27 @@
             <input type="text" id="billNo">
             <label>Item No</label>
             <input type="text" id="itemNo">
+            
+            <label>Type</label>
+            <input list="type-options" id="itemType">
+            <datalist id="type-options">
+                    <option value="Sofa">
+                    <option value="Armchair">
+                    <option value="Chair">
+                    <option value="Table">
+                    <option value="Coffee Table">
+                    <option value="Side Table">
+                    <option value="Bed">
+                    <option value="Bench">
+                    <option value="Night Table">
+                    <option value="Daybed/Ottoman/Stool">
+                    <option value="Console Cabinet">
+                    <option value="Desk">
+                    <option value="Bookcase">
+                    <option value="Pillow">
+                    <option value="Others">
+            </datalist>
+
             <label>Description</label>
             <input type="text" id="desc">
             <label>Supplier</label>
@@ -78,6 +83,7 @@
                 <div class="review-row"><strong>Ref:</strong> <span id="r-ref"></span></div>
                 <div class="review-row"><strong>Bill:</strong> <span id="r-bill"></span></div>
                 <div class="review-row"><strong>Item:</strong> <span id="r-item"></span></div>
+                <div class="review-row"><strong>Type:</strong> <span id="r-type"></span></div>
                 <div class="review-row"><strong>Desc:</strong> <span id="r-desc"></span></div>
                 <div class="review-row"><strong>Supplier:</strong> <span id="r-supp"></span></div>
                 <div class="review-row"><strong>Installment:</strong> <span id="r-inst"></span></div>
@@ -98,104 +104,77 @@
             scriptUrl: "https://script.google.com/macros/s/AKfycby17s2vUqmaLRg8NUmBi2C4XIIVciDRXFHviGYYiTiVl6v9ieLd0i7K-EC63s4ph3ZAIQ/exec" 
         };
 
-        // Global variable to store pending action
         let PENDING_ACTION = ""; 
 
         async function main() {
             try {
                 await liff.init({ liffId: CONFIG.liffId });
                 if (!liff.isLoggedIn()) liff.login();
-            } catch (err) {
-                console.error("LIFF Init failed", err);
-            }
+            } catch (err) { console.error("LIFF Init failed", err); }
         }
         main();
 
-        // --- 1. SEARCH ---
         async function searchData() {
             const refCode = document.getElementById('searchRef').value.trim();
             const btn = document.getElementById('searchBtn');
             const loading = document.getElementById('loading');
             
             if (!refCode) { alert("Please enter a Ref Code"); return; }
-
-            btn.disabled = true;
-            loading.style.display = 'block';
-            document.getElementById('bottom-message').innerText = ""; // Clear old msgs
+            btn.disabled = true; loading.style.display = 'block';
 
             try {
-                const response = await fetch(`${CONFIG.scriptUrl}?ref=${refCode}`, {
-                    method: "GET",
-                    redirect: "follow"
-                });
+                const response = await fetch(`${CONFIG.scriptUrl}?ref=${refCode}`, { method: "GET", redirect: "follow" });
                 const data = await response.json();
 
                 if (data.found) {
-                    // Fill inputs
                     document.getElementById('billNo').value = data.bill;
                     document.getElementById('itemNo').value = data.item;
+                    document.getElementById('itemType').value = data.type; // Populate Type
                     document.getElementById('desc').value = data.desc;
                     document.getElementById('supplier').value = data.supplier;
                     document.getElementById('instNo').value = data.inst;
                     document.getElementById('amount').value = data.amount;
 
-                    // Toggle Views
                     document.getElementById('search-section').style.display = 'none';
                     document.getElementById('edit-section').style.display = 'block';
                 } else {
                     alert("Ref Code not found!");
-                    btn.disabled = false;
-                    loading.style.display = 'none';
+                    btn.disabled = false; loading.style.display = 'none';
                 }
-            } catch (err) {
-                console.error(err);
-                alert("Error connecting to database");
-                btn.disabled = false;
-                loading.style.display = 'none';
-            }
+            } catch (err) { alert("Error connecting to database"); btn.disabled = false; loading.style.display = 'none'; }
         }
 
-        // --- 2. SHOW REVIEW SCREEN ---
         function showReview(actionType) {
             PENDING_ACTION = actionType;
-
-            // Gather values
             const ref = document.getElementById('searchRef').value;
             const bill = document.getElementById('billNo').value;
             const item = document.getElementById('itemNo').value;
+            const type = document.getElementById('itemType').value;
             const desc = document.getElementById('desc').value;
             const supp = document.getElementById('supplier').value;
             const inst = document.getElementById('instNo').value;
             const amt = document.getElementById('amount').value;
 
-            // Validate
             if(!bill || !amt) { alert("Bill No and Amount are required!"); return; }
 
-            // Populate Review Box
             document.getElementById('r-ref').innerText = ref;
             document.getElementById('r-bill').innerText = bill;
             document.getElementById('r-item').innerText = item;
+            document.getElementById('r-type').innerText = type || "-";
             document.getElementById('r-desc').innerText = desc;
             document.getElementById('r-supp').innerText = supp;
             document.getElementById('r-inst').innerText = inst;
             document.getElementById('r-amt').innerText = "฿" + Number(amt).toLocaleString();
             
             const actionSpan = document.getElementById('r-action');
-            const confirmBtn = document.getElementById('confirmBtn');
-
             if(actionType === 'delete') {
-                actionSpan.innerText = "DELETE RECORD";
-                actionSpan.style.color = "red";
-                confirmBtn.style.backgroundColor = "#dc3545";
-                confirmBtn.innerText = "Confirm Delete";
+                actionSpan.innerText = "DELETE RECORD"; actionSpan.style.color = "red";
+                document.getElementById('confirmBtn').style.backgroundColor = "#dc3545";
             } else {
-                actionSpan.innerText = "UPDATE RECORD";
-                actionSpan.style.color = "#1DB446";
-                confirmBtn.style.backgroundColor = "#1DB446";
-                confirmBtn.innerText = "Confirm Update";
+                actionSpan.innerText = "UPDATE RECORD"; actionSpan.style.color = "#1DB446";
+                document.getElementById('confirmBtn').style.backgroundColor = "#1DB446";
             }
 
-            // Switch Screens
             document.getElementById('edit-section').style.display = 'none';
             document.getElementById('review-section').style.display = 'block';
         }
@@ -205,13 +184,9 @@
             document.getElementById('edit-section').style.display = 'block';
         }
 
-        // --- 3. EXECUTE FINAL ACTION ---
         async function executeFinalAction() {
             const btn = document.getElementById('confirmBtn');
-            const bottomMsg = document.getElementById('bottom-message');
-            
-            btn.disabled = true;
-            btn.innerText = "Sending...";
+            btn.disabled = true; btn.innerText = "Sending...";
             
             const payload = {
                 authKey: "PNGL",
@@ -219,6 +194,7 @@
                 refCode: document.getElementById('searchRef').value,
                 bill: document.getElementById('billNo').value,
                 item: document.getElementById('itemNo').value,
+                type: document.getElementById('itemType').value, // Send Type
                 desc: document.getElementById('desc').value,
                 supplier: document.getElementById('supplier').value,
                 inst: document.getElementById('instNo').value,
@@ -226,54 +202,19 @@
             };
 
             try {
-                // A. Send to Sheet
-                await fetch(CONFIG.scriptUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(payload)
-                });
+                await fetch(CONFIG.scriptUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
 
-                // B. Send LINE Message
                 if (liff.isInClient()) {
-                    let msg = "";
-                    const ref = payload.refCode;
-                    
-                    if (PENDING_ACTION === 'delete') {
-                        msg = `❌ *Delete ${ref}*\n\nRef: ${ref}`;
-                    } else {
-                        msg = `🔧 *Edit ${ref}*\n\n` +
-                              `• Bill: ${payload.bill}\n` +
-                              `• Item: ${payload.item}\n` +
-                              `• Desc: ${payload.desc}\n` +
-                              `• Supp: ${payload.supplier}\n` +
-                              `• Inst: ${payload.inst}\n` +
-                              `• Amt: ฿${Number(payload.amount).toLocaleString()}\n` +
-                              `• Ref: ${ref}`;
-                    }
-                    
-                    await liff.sendMessages([
-                        { type: 'text', text: msg },
-                        { type: 'text', text: ref }
-                    ]);
+                    let msg = PENDING_ACTION === 'delete' ? `❌ *Delete ${payload.refCode}*` : `🔧 *Edit ${payload.refCode}*\n\n• Type: ${payload.type}\n• Amt: ฿${Number(payload.amount).toLocaleString()}`;
+                    await liff.sendMessages([{ type: 'text', text: msg }, { type: 'text', text: payload.refCode }]);
                 }
 
-                // C. Show Success at BOTTOM and Close
                 document.getElementById('review-section').style.display = 'none';
-                
-                bottomMsg.className = "success-text";
-                bottomMsg.innerText = "✅ Success! Closing...";
-                
-                setTimeout(() => {
-                    if (liff.isInClient()) liff.closeWindow();
-                    else location.reload();
-                }, 2000);
-
+                document.getElementById('bottom-message').innerText = "✅ Success! Closing...";
+                setTimeout(() => { if (liff.isInClient()) liff.closeWindow(); else location.reload(); }, 2000);
             } catch (err) {
-                console.error(err);
-                bottomMsg.className = "error-text";
-                bottomMsg.innerText = "Error: " + err.message;
+                document.getElementById('bottom-message').innerText = "Error: " + err.message;
                 btn.disabled = false;
-                btn.innerText = "Retry";
             }
         }
     </script>
