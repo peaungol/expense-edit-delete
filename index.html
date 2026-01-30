@@ -7,7 +7,7 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f4f9; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; position: relative; min-height: 400px;}
         h3 { color: #1DB446; margin-top: 0; }
         input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; color: white; font-size: 16px; }
@@ -15,48 +15,81 @@
         .btn-save { background-color: #1DB446; }
         .btn-del { background-color: #dc3545; margin-top: 15px;}
         .btn-cancel { background-color: #6c757d; margin-top: 5px;}
+        
+        /* Sections */
         #edit-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
+        #review-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
+        
         label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
         #loading { display:none; color: #666; text-align: center; margin-top: 10px; font-weight: bold;}
-        
-        /* Success Message Style */
-        .success-msg { color: #1DB446; font-size: 18px; font-weight: bold; margin-top: 20px; text-align: center; }
+
+        /* Review Box Style */
+        .review-box { background-color: #f8f9fa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .review-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #eee; padding-bottom: 4px;}
+        .review-row strong { color: #333; }
+        .review-row span { color: #666; text-align: right;}
+
+        /* Bottom Status Message */
+        #bottom-message { 
+            text-align: center; 
+            margin-top: 20px; 
+            font-weight: bold; 
+            font-size: 16px;
+            min-height: 24px;
+        }
+        .success-text { color: #1DB446; }
+        .error-text { color: #dc3545; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h3>🔍 Search Expense</h3>
-        <input type="text" id="searchRef" placeholder="Enter Ref Code (e.g. 9X2A)">
-        <button class="btn btn-search" onclick="searchData()" id="searchBtn">Find Record</button>
-        <p id="status" style="color: red; text-align: center; font-size: 14px; margin-top:10px;"></p>
-        <div id="loading">Processing... Please wait.</div>
+        <div id="search-section">
+            <h3>🔍 Search Expense</h3>
+            <input type="text" id="searchRef" placeholder="Enter Ref Code (e.g. 9X2A)">
+            <button class="btn btn-search" onclick="searchData()" id="searchBtn">Find Record</button>
+            <div id="loading">Processing... Please wait.</div>
+        </div>
 
         <div id="edit-section">
             <h3>✏️ Edit Details</h3>
             
             <label>Bill No</label>
             <input type="text" id="billNo">
-            
             <label>Item No</label>
             <input type="text" id="itemNo">
-            
             <label>Description</label>
             <input type="text" id="desc">
-            
             <label>Supplier</label>
             <input type="text" id="supplier">
-            
             <label>Installment</label>
             <input type="text" id="instNo">
-            
             <label>Amount</label>
             <input type="number" id="amount">
 
-            <button class="btn btn-save" onclick="sendAction('edit')">Save Changes</button>
-            <button class="btn btn-del" onclick="if(confirm('Delete this record?')) sendAction('delete')">Delete Record</button>
+            <button class="btn btn-save" onclick="showReview('edit')">Review & Save</button>
+            <button class="btn btn-del" onclick="showReview('delete')">Review & Delete</button>
             <button class="btn btn-cancel" onclick="location.reload()">Cancel</button>
         </div>
+
+        <div id="review-section">
+            <h3 id="review-title">📋 Confirm Details</h3>
+            <div class="review-box">
+                <div class="review-row"><strong>Ref:</strong> <span id="r-ref"></span></div>
+                <div class="review-row"><strong>Bill:</strong> <span id="r-bill"></span></div>
+                <div class="review-row"><strong>Item:</strong> <span id="r-item"></span></div>
+                <div class="review-row"><strong>Desc:</strong> <span id="r-desc"></span></div>
+                <div class="review-row"><strong>Supplier:</strong> <span id="r-supp"></span></div>
+                <div class="review-row"><strong>Installment:</strong> <span id="r-inst"></span></div>
+                <div class="review-row"><strong>Amount:</strong> <span id="r-amt" style="color:#1DB446; font-weight:bold;"></span></div>
+                <div class="review-row"><strong>Action:</strong> <span id="r-action" style="font-weight:bold;"></span></div>
+            </div>
+            
+            <button class="btn btn-save" id="confirmBtn" onclick="executeFinalAction()">Confirm & Send</button>
+            <button class="btn btn-cancel" onclick="backToEdit()">Back to Edit</button>
+        </div>
+
+        <div id="bottom-message"></div>
     </div>
 
     <script>
@@ -65,43 +98,40 @@
             scriptUrl: "https://script.google.com/macros/s/AKfycby17s2vUqmaLRg8NUmBi2C4XIIVciDRXFHviGYYiTiVl6v9ieLd0i7K-EC63s4ph3ZAIQ/exec" 
         };
 
-        // Initialize LIFF
+        // Global variable to store pending action
+        let PENDING_ACTION = ""; 
+
         async function main() {
             try {
                 await liff.init({ liffId: CONFIG.liffId });
-                if (!liff.isLoggedIn()) {
-                    liff.login();
-                }
+                if (!liff.isLoggedIn()) liff.login();
             } catch (err) {
                 console.error("LIFF Init failed", err);
             }
         }
         main();
 
-        // 1. SEARCH FUNCTION
+        // --- 1. SEARCH ---
         async function searchData() {
             const refCode = document.getElementById('searchRef').value.trim();
             const btn = document.getElementById('searchBtn');
-            const status = document.getElementById('status');
+            const loading = document.getElementById('loading');
             
-            if (!refCode) { status.innerText = "Please enter a Ref Code"; return; }
+            if (!refCode) { alert("Please enter a Ref Code"); return; }
 
             btn.disabled = true;
-            status.innerText = "";
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').style.color = "#666"; // Reset color
-            document.getElementById('loading').innerText = "Processing... Please wait.";
+            loading.style.display = 'block';
+            document.getElementById('bottom-message').innerText = ""; // Clear old msgs
 
             try {
-                // FIXED: Changed '?refCode=' to '?ref=' to match Google Script
                 const response = await fetch(`${CONFIG.scriptUrl}?ref=${refCode}`, {
                     method: "GET",
                     redirect: "follow"
                 });
-                
                 const data = await response.json();
 
                 if (data.found) {
+                    // Fill inputs
                     document.getElementById('billNo').value = data.bill;
                     document.getElementById('itemNo').value = data.item;
                     document.getElementById('desc').value = data.desc;
@@ -109,109 +139,141 @@
                     document.getElementById('instNo').value = data.inst;
                     document.getElementById('amount').value = data.amount;
 
+                    // Toggle Views
+                    document.getElementById('search-section').style.display = 'none';
                     document.getElementById('edit-section').style.display = 'block';
-                    document.getElementById('loading').style.display = 'none';
-                    btn.innerText = "Found!";
                 } else {
-                    status.innerText = "Ref Code not found!";
-                    document.getElementById('loading').style.display = 'none';
+                    alert("Ref Code not found!");
                     btn.disabled = false;
+                    loading.style.display = 'none';
                 }
             } catch (err) {
                 console.error(err);
-                status.innerText = "Error: Check internet or Ref Code.";
-                document.getElementById('loading').style.display = 'none';
+                alert("Error connecting to database");
                 btn.disabled = false;
+                loading.style.display = 'none';
             }
         }
 
-        // 2. UPDATE / DELETE AND SEND TO CHAT
-        async function sendAction(actionType) {
-            const refCode = document.getElementById('searchRef').value.trim();
-            if (!refCode) return;
+        // --- 2. SHOW REVIEW SCREEN ---
+        function showReview(actionType) {
+            PENDING_ACTION = actionType;
 
-            // Gather Data
+            // Gather values
+            const ref = document.getElementById('searchRef').value;
             const bill = document.getElementById('billNo').value;
-            const amount = document.getElementById('amount').value;
-            const desc = document.getElementById('desc').value;
             const item = document.getElementById('itemNo').value;
-            const supplier = document.getElementById('supplier').value;
+            const desc = document.getElementById('desc').value;
+            const supp = document.getElementById('supplier').value;
             const inst = document.getElementById('instNo').value;
+            const amt = document.getElementById('amount').value;
 
+            // Validate
+            if(!bill || !amt) { alert("Bill No and Amount are required!"); return; }
+
+            // Populate Review Box
+            document.getElementById('r-ref').innerText = ref;
+            document.getElementById('r-bill').innerText = bill;
+            document.getElementById('r-item').innerText = item;
+            document.getElementById('r-desc').innerText = desc;
+            document.getElementById('r-supp').innerText = supp;
+            document.getElementById('r-inst').innerText = inst;
+            document.getElementById('r-amt').innerText = "฿" + Number(amt).toLocaleString();
+            
+            const actionSpan = document.getElementById('r-action');
+            const confirmBtn = document.getElementById('confirmBtn');
+
+            if(actionType === 'delete') {
+                actionSpan.innerText = "DELETE RECORD";
+                actionSpan.style.color = "red";
+                confirmBtn.style.backgroundColor = "#dc3545";
+                confirmBtn.innerText = "Confirm Delete";
+            } else {
+                actionSpan.innerText = "UPDATE RECORD";
+                actionSpan.style.color = "#1DB446";
+                confirmBtn.style.backgroundColor = "#1DB446";
+                confirmBtn.innerText = "Confirm Update";
+            }
+
+            // Switch Screens
+            document.getElementById('edit-section').style.display = 'none';
+            document.getElementById('review-section').style.display = 'block';
+        }
+
+        function backToEdit() {
+            document.getElementById('review-section').style.display = 'none';
+            document.getElementById('edit-section').style.display = 'block';
+        }
+
+        // --- 3. EXECUTE FINAL ACTION ---
+        async function executeFinalAction() {
+            const btn = document.getElementById('confirmBtn');
+            const bottomMsg = document.getElementById('bottom-message');
+            
+            btn.disabled = true;
+            btn.innerText = "Sending...";
+            
             const payload = {
                 authKey: "PNGL",
-                action: actionType,
-                refCode: refCode,
-                bill: bill,
-                item: item,
-                desc: desc,
-                supplier: supplier,
-                inst: inst,
-                amount: amount
+                action: PENDING_ACTION,
+                refCode: document.getElementById('searchRef').value,
+                bill: document.getElementById('billNo').value,
+                item: document.getElementById('itemNo').value,
+                desc: document.getElementById('desc').value,
+                supplier: document.getElementById('supplier').value,
+                inst: document.getElementById('instNo').value,
+                amount: document.getElementById('amount').value
             };
 
-            if(confirm(`Are you sure you want to ${actionType}?`)) {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('loading').innerText = "Updating Database...";
-                
-                try {
-                    // A. Send to Google Sheet (Database Update)
-                    await fetch(CONFIG.scriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify(payload)
-                    });
+            try {
+                // A. Send to Sheet
+                await fetch(CONFIG.scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
 
-                    // B. Send Message to LINE Chat (Chat Update)
-                    if (liff.isInClient()) {
-                        let msg = "";
-                        
-                        if (actionType === 'delete') {
-                            msg = `❌ *Delete ${refCode}*\n\n` +
-                                  `• Bill No: ${bill}\n` +
-                                  `• Item No: ${item}\n` +
-                                  `• Desc: ${desc}\n` +
-                                  `• Supplier: ${supplier}\n` +
-                                  `• Installment: ${inst}\n` +
-                                  `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
-                                  `• Ref: ${refCode}`;
-                        } else {
-                            msg = `🔧 *Edit ${refCode}*\n\n` +
-                                  `• Bill No: ${bill}\n` +
-                                  `• Item No: ${item}\n` +
-                                  `• Desc: ${desc}\n` +
-                                  `• Supplier: ${supplier}\n` +
-                                  `• Installment: ${inst}\n` +
-                                  `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
-                                  `• Ref: ${refCode}`;
-                        }
-
-                        await liff.sendMessages([
-                            { type: 'text', text: msg },
-                            { type: 'text', text: refCode }
-                        ]);
-
-                        // --- C. SUCCESS & DELAY ---
-                        document.getElementById('edit-section').style.display = 'none'; // Hide Form
-                        document.getElementById('loading').innerText = "✅ Success! Closing...";
-                        document.getElementById('loading').className = "success-msg"; // Make it green/bold
-                        document.getElementById('loading').style.color = "#1DB446";
-
-                        // Wait 2 seconds (2000ms) then close
-                        setTimeout(() => {
-                            liff.closeWindow();
-                        }, 2000);
-
+                // B. Send LINE Message
+                if (liff.isInClient()) {
+                    let msg = "";
+                    const ref = payload.refCode;
+                    
+                    if (PENDING_ACTION === 'delete') {
+                        msg = `❌ *Delete ${ref}*\n\nRef: ${ref}`;
                     } else {
-                        // Fallback for browser testing
-                        alert("Success! (Open in LINE to see message)");
-                        location.reload();
+                        msg = `🔧 *Edit ${ref}*\n\n` +
+                              `• Bill: ${payload.bill}\n` +
+                              `• Item: ${payload.item}\n` +
+                              `• Desc: ${payload.desc}\n` +
+                              `• Supp: ${payload.supplier}\n` +
+                              `• Inst: ${payload.inst}\n` +
+                              `• Amt: ฿${Number(payload.amount).toLocaleString()}\n` +
+                              `• Ref: ${ref}`;
                     }
-
-                } catch (err) {
-                    alert("Error: " + err.message);
-                    document.getElementById('loading').style.display = 'none';
+                    
+                    await liff.sendMessages([
+                        { type: 'text', text: msg },
+                        { type: 'text', text: ref }
+                    ]);
                 }
+
+                // C. Show Success at BOTTOM and Close
+                document.getElementById('review-section').style.display = 'none';
+                
+                bottomMsg.className = "success-text";
+                bottomMsg.innerText = "✅ Success! Closing...";
+                
+                setTimeout(() => {
+                    if (liff.isInClient()) liff.closeWindow();
+                    else location.reload();
+                }, 2000);
+
+            } catch (err) {
+                console.error(err);
+                bottomMsg.className = "error-text";
+                bottomMsg.innerText = "Error: " + err.message;
+                btn.disabled = false;
+                btn.innerText = "Retry";
             }
         }
     </script>
