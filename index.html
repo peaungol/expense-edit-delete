@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Expense</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 20px; background-color: #f4f4f9; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        h3 { color: #1DB446; margin-top: 0; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; color: white; font-size: 16px; }
+        .btn-search { background-color: #007bff; }
+        .btn-save { background-color: #1DB446; }
+        .btn-del { background-color: #dc3545; margin-top: 15px;}
+        .btn-cancel { background-color: #6c757d; margin-top: 5px;}
+        #edit-section { display: none; border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; }
+        label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
+        #loading { display:none; color: #666; text-align: center; margin-top: 10px; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h3>🔍 Search Expense</h3>
+        <input type="text" id="searchRef" placeholder="Enter Ref Code (e.g. 9X2A)">
+        <button class="btn btn-search" onclick="searchData()" id="searchBtn">Find Record</button>
+        <p id="status" style="color: red; text-align: center; font-size: 14px; margin-top:10px;"></p>
+        <div id="loading">Processing... Please wait.</div>
+
+        <div id="edit-section">
+            <h3>✏️ Edit Details</h3>
+            
+            <label>Bill No</label>
+            <input type="text" id="billNo">
+            
+            <label>Item No</label>
+            <input type="text" id="itemNo">
+            
+            <label>Description</label>
+            <input type="text" id="desc">
+            
+            <label>Supplier</label>
+            <input type="text" id="supplier">
+            
+            <label>Installment</label>
+            <input type="text" id="instNo">
+            
+            <label>Amount</label>
+            <input type="number" id="amount">
+
+            <button class="btn btn-save" onclick="sendAction('edit')">Save Changes</button>
+            <button class="btn btn-del" onclick="if(confirm('Delete this record?')) sendAction('delete')">Delete Record</button>
+            <button class="btn btn-cancel" onclick="location.reload()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            // 1. PASTE YOUR LIFF ID HERE
+            liffId: "2009011182-W7GaHRTL", 
+            
+            // 2. PASTE YOUR GOOGLE SCRIPT URL HERE (Must end in /exec)
+            scriptUrl: "https://script.google.com/macros/s/AKfycby17s2vUqmaLRg8NUmBi2C4XIIVciDRXFHviGYYiTiVl6v9ieLd0i7K-EC63s4ph3ZAIQ/exec" 
+        };
+
+        // Initialize LIFF
+        async function main() {
+            try {
+                await liff.init({ liffId: CONFIG.liffId });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                }
+            } catch (err) {
+                console.error("LIFF Init failed", err);
+            }
+        }
+        main();
+
+        // 1. SEARCH FUNCTION
+        async function searchData() {
+            const ref = document.getElementById('searchRef').value.trim();
+            const btn = document.getElementById('searchBtn');
+            const status = document.getElementById('status');
+            
+            if (!ref) { status.innerText = "Please enter a Ref Code"; return; }
+
+            btn.disabled = true;
+            status.innerText = "";
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                const response = await fetch(`${CONFIG.scriptUrl}?ref=${ref}`, {
+                    method: "GET",
+                    redirect: "follow"
+                });
+                
+                const data = await response.json();
+
+                if (data.found) {
+                    document.getElementById('billNo').value = data.bill;
+                    document.getElementById('itemNo').value = data.item;
+                    document.getElementById('desc').value = data.desc;
+                    document.getElementById('supplier').value = data.supplier;
+                    document.getElementById('instNo').value = data.inst;
+                    document.getElementById('amount').value = data.amount;
+
+                    document.getElementById('edit-section').style.display = 'block';
+                    document.getElementById('loading').style.display = 'none';
+                    btn.innerText = "Found!";
+                } else {
+                    status.innerText = "Ref Code not found!";
+                    document.getElementById('loading').style.display = 'none';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Error: Check internet or Ref Code.";
+                document.getElementById('loading').style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // 2. UPDATE / DELETE AND SEND TO CHAT
+        async function sendAction(actionType) {
+            const ref = document.getElementById('searchRef').value.trim();
+            if (!ref) return;
+
+            // Gather Data
+            const bill = document.getElementById('billNo').value;
+            const amount = document.getElementById('amount').value;
+            const desc = document.getElementById('desc').value;
+            const item = document.getElementById('itemNo').value;
+            const supplier = document.getElementById('supplier').value;
+            const inst = document.getElementById('instNo').value;
+
+            const payload = {
+                authKey: "PNGL",
+                action: actionType,
+                refCode: ref,
+                bill: bill,
+                item: item,
+                desc: desc,
+                supplier: supplier,
+                inst: inst,
+                amount: amount
+            };
+
+            if(confirm(`Are you sure you want to ${actionType}?`)) {
+                document.getElementById('loading').style.display = 'block';
+                
+                try {
+                    // A. Send to Google Sheet (Database Update)
+                    await fetch(CONFIG.scriptUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify(payload)
+                    });
+
+                    // B. Send Message to LINE Chat (Chat Update)
+                    if (liff.isInClient()) {
+                        let msg = "";
+                        
+                        if (actionType === 'delete') {
+                            msg = `❌ Delete ${ref}*\n\n` +
+                                    `• Bill No: ${bill}\n` +
+                                    `• Item No: ${item}\n` +
+                                    `• Desc: ${desc}\n` +
+                                    `• Supplier: ${supplier}\n` +
+                                    `• Installment: ${inst}\n` +
+                                    `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
+                                    `• Ref: ${ref}`;
+                        } else {
+                            // Format the message nicely
+                            msg = `📋 Edit ${ref}*\n\n` +
+                                    `• Bill No: ${bill}\n` +
+                                    `• Item No: ${item}\n` +
+                                    `• Desc: ${desc}\n` +
+                                    `• Supplier: ${supplier}\n` +
+                                    `• Installment: ${inst}\n` +
+                                    `• Amount: ฿${parseFloat(amount).toLocaleString()}\n` +
+                                    `• Ref: ${ref}`;
+                        }
+
+                        await liff.sendMessages([{ type: 'text', text: msg }]);
+                        liff.closeWindow(); // Close the window after sending
+                    } else {
+                        // Fallback for browser testing
+                        alert("Success! (Open in LINE to see message)");
+                        location.reload();
+                    }
+
+                } catch (err) {
+                    alert("Error: " + err.message);
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
